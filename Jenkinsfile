@@ -22,11 +22,17 @@ pipeline {
             }
         }
         stage('Test') {
-            sh'''
+            docker {
+                    image 'node:20-alpine'
+                    reuseNode true
+                }
+            }
+            steps{
+                sh'''
             test -f build/index.html
             npm test
             '''
-
+            }
         }
     }
 }

@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     stages {
+        reuseNode :true
         stage('Build'){
-            reuseNode:true
             steps{
                 sh'''
                 echo "Build Stage..."

@@ -3,6 +3,12 @@ pipeline {
 
     stages {
         stage('Build'){
+            agent{
+                dokcer{
+                    image 'node:18-alpine'
+                    reuseNode true
+                }
+            }
             steps{
                 sh'''
                 echo "Build Stage..."

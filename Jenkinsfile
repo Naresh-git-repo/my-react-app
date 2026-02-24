@@ -2,14 +2,15 @@ pipeline {
     agent any
 
     stages {
-        stage('Hello') {
-            steps {
-                echo 'Hello World'
-            }
-        }
         stage('Build'){
+            reuseNode:true
             steps{
-                echo "Build stage..."
+                sh'''
+                echo "Build Stage..."
+                npm --version
+                node --version
+                ls -la
+                '''
             }
         }
     }

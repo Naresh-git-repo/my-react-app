@@ -6,6 +6,7 @@ pipeline {
             steps{
                 sh'''
                 echo "Build Stage..."
+                npm ci --prefer-offline
                 npm --version
                 node --version
                 ls -la

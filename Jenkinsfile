@@ -52,4 +52,7 @@ pipeline {
             }
         }
     }
+   options{
+    timestamps()
+   }
 }

@@ -1,58 +1,90 @@
 pipeline {
     agent any
 
+    options {
+        timestamps()
+    }
+
     stages {
-        stage('Build'){
+
+        stage('Build') {
             agent {
                 docker {
                     image 'node:20-alpine'
                     reuseNode true
                 }
             }
-            steps{
-                sh'''
+            steps {
+                sh '''
                 echo "Build Stage..."
                 npm ci --prefer-offline
                 npm --version
                 node --version
-                ls -la
                 npm run build
-                ls -la
                 '''
             }
         }
-        stage('Test') {
-            agent {
-                docker{
-                    image 'node:20-alpine'
-                    reuseNode true
+
+        stage('Tests') {
+            failFast true
+            parallel {
+
+                stage('Unit Test') {
+                    agent {
+                        docker {
+                            image 'node:20-alpine'
+                            reuseNode true
+                        }
+                    }
+                    steps {
+                        sh '''
+                        test -f build/index.html
+                        CI=true npm test -- --watchAll=false --coverage
+                        '''
+                    }
                 }
+
+                stage('E2E Test') {
+                    agent {
+                        docker {
+                            image 'mcr.microsoft.com/playwright:v1.58.2-jammy'
+                            reuseNode true
+                        }
+                    }
+                    steps {
+                        sh '''
+                        npx serve -s build -l 3000 &
+                        npx wait-on http://localhost:3000
+                        npx playwright test tests/ --reporter=junit,html
+                        '''
+                    }
                 }
-            steps{
-            sh'''
-            test -f build/index.html
-            npm test
-            '''
-            }
-        }
-        stage('E2E Test'){
-            agent {
-                docker {
-                    image 'mcr.microsoft.com/playwright:v1.58.2-jammy'
-                    reuseNode true
-                }
-            }
-            steps{
-                sh'''
-                npm ci
-                npx serve -s build -l 3000 &
-                npx wait-on http://localhost:3000
-                npx playwright test tests/
-                '''
+
             }
         }
     }
-   options{
-    timestamps()
-   }
+
+    post {
+        always {
+
+            echo "Publishing Reports..."
+
+            junit allowEmptyResults: true, testResults: '**/junit*.xml'
+
+            archiveArtifacts artifacts: '''
+                playwright-report/**,
+                test-results/**,
+                coverage/**
+            ''', allowEmptyArchive: true
+
+        }
+
+        success {
+            echo "Pipeline SUCCESS ✅"
+        }
+
+        failure {
+            echo "Pipeline FAILED ❌"
+        }
+    }
 }

@@ -36,10 +36,15 @@ pipeline {
             }
         }
         stage('E2E Test'){
-            reuseNode true
+            agent {
+                docker {
+                    image 'mcr.microsoft.com/playwright'
+                    reuseNode true
+                }
+            }
             steps{
                 sh'''
-                npm install serve
+                npx serve
                 node_modules/.bin/serve -s build &
                 sleep 10
                 npx playwright test

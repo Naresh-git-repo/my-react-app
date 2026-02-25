@@ -55,7 +55,7 @@ pipeline {
                         sh '''
                         npx serve -s build -l 3000 &
                         npx wait-on http://localhost:3000
-                        npx playwright test tests/ --reporter=junit,html
+                        npx playwright test tests/ --reporter=junit=results.xml,html
                         '''
                     }
                 }
@@ -65,26 +65,16 @@ pipeline {
     }
 
     post {
-        always {
+    always {
+        echo "Publishing Reports..."
 
-            echo "Publishing Reports..."
+        junit allowEmptyResults: true, testResults: 'results.xml'
 
-            junit allowEmptyResults: true, testResults: '**/junit*.xml'
-
-            archiveArtifacts artifacts: '''
-                playwright-report/**,
-                test-results/**,
-                coverage/**
-            ''', allowEmptyArchive: true
-
-        }
-
-        success {
-            echo "Pipeline SUCCESS ✅"
-        }
-
-        failure {
-            echo "Pipeline FAILED ❌"
-        }
+        archiveArtifacts artifacts: '''
+            playwright-report/**,
+            test-results/**,
+            coverage/**
+        ''', allowEmptyArchive: true
     }
+}
 }

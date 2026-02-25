@@ -36,6 +36,7 @@ pipeline {
             }
         }
         stage('E2E Test'){
+            reuseNode true
             steps{
                 sh'''
                 npm install serve

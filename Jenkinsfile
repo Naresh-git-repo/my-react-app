@@ -35,5 +35,15 @@ pipeline {
             '''
             }
         }
+        stage('E2E Test'){
+            steps{
+                sh'''
+                npm install serve
+                my-app\node_modules\.bin\serve-s build &
+                sleep 10
+                npx playwright test
+                '''
+            }
+        }
     }
 }

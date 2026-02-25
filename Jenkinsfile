@@ -44,9 +44,8 @@ pipeline {
             }
             steps{
                 sh'''
-                npx serve
-                node_modules/.bin/serve -s build &
-                sleep 10
+                npx serve -s build -l 3000 &
+                npx wait-on http://localhost:3000
                 npx playwright test
                 '''
             }

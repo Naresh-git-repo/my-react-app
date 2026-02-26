@@ -55,7 +55,7 @@ pipeline {
                         sh '''
                         npx serve -s build -l 3000 &
                         npx wait-on http://localhost:3000
-                        npx playwright test tests/ --reporter=junit,html --output=test-results
+                        npx playwright test
                         '''
                     }
                 }
@@ -65,29 +65,25 @@ pipeline {
     }
 
     post {
-    always {
-        echo "Publishing Reports..."
+        always {
+            echo "Publishing Reports..."
 
-        // Publish JUnit Results
-        junit allowEmptyResults: true, testResults: 'test-results/*.xml'
+            // Publish JUnit Results
+            junit allowEmptyResults: true, testResults: 'test-results/*.xml'
 
-        // Publish Playwright HTML Report
-        publishHTML([
-            allowMissing: true,
-            alwaysLinkToLastBuild: true,
-            keepAll: true,
-            reportDir: 'playwright-report',
-            reportFiles: 'index.html',
-            reportName: 'Playwright HTML Report'
-        ])
+            // Publish Playwright HTML Report
+            publishHTML([
+                allowMissing: true,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'playwright-report',
+                reportFiles: 'index.html',
+                reportName: 'Playwright HTML Report'
+            ])
 
-        // Archive artifacts
-        archiveArtifacts artifacts: '''
-            playwright-report/**,
-            test-results/**,
-            coverage/**
-        ''', allowEmptyArchive: true
+            // Archive artifacts
+            archiveArtifacts artifacts: 'playwright-report/**, test-results/**, coverage/**',
+                             allowEmptyArchive: true
+        }
     }
-}
-}
 }

@@ -68,13 +68,26 @@ pipeline {
     always {
         echo "Publishing Reports..."
 
-        junit allowEmptyResults: true, testResults: 'results.xml'
+        // Publish JUnit Results
+        junit allowEmptyResults: true, testResults: 'test-results/*.xml'
 
+        // Publish Playwright HTML Report
+        publishHTML([
+            allowMissing: true,
+            alwaysLinkToLastBuild: true,
+            keepAll: true,
+            reportDir: 'playwright-report',
+            reportFiles: 'index.html',
+            reportName: 'Playwright HTML Report'
+        ])
+
+        // Archive artifacts
         archiveArtifacts artifacts: '''
             playwright-report/**,
             test-results/**,
             coverage/**
         ''', allowEmptyArchive: true
     }
+}
 }
 }

@@ -12,24 +12,24 @@ permissions:
 contents: read
 
 env:
-JAVA_VERSION: '17'
+JAVA_VERSION: "17"
+IMAGE_NAME: springboot-app
 
 jobs:
 
 build-test-scan:
-
-```
 runs-on: ubuntu-latest
 
+```
 outputs:
-  artifact-name: springboot-artifact
+  image-tag: ${{ github.run_number }}
 
 steps:
 
-  - name: Checkout Source
+  - name: Checkout Source Code
     uses: actions/checkout@v4
 
-  - name: Setup Java 17
+  - name: Setup Java
     uses: actions/setup-java@v4
     with:
       distribution: temurin
@@ -41,10 +41,10 @@ steps:
       path: ~/.m2/repository
       key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
 
-  - name: Maven Clean Package
-    run: mvn clean package -DskipTests
+  - name: Maven Clean Build
+    run: mvn clean package
 
-  - name: Run Unit Tests
+  - name: Unit Test Execution
     run: mvn test
 
   - name: SonarQube Analysis
@@ -53,39 +53,80 @@ steps:
       -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
       -Dsonar.token=${{ secrets.SONAR_TOKEN }}
 
+  - name: Sonar Quality Gate
+    uses: sonarsource/sonarqube-quality-gate-action@master
+    timeout-minutes: 10
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
   - name: Install FOSSA
     run: |
       curl -H "Cache-Control: no-cache" \
       https://raw.githubusercontent.com/fossas/fossa-cli/master/install.sh | bash
 
-  - name: Run FOSSA Scan
+  - name: FOSSA Scan
     env:
       FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
     run: |
       fossa analyze
       fossa test
 
-  - name: Upload JAR to JFrog
-    run: |
-      curl -u "${{ secrets.JFROG_USERNAME }}:${{ secrets.JFROG_PASSWORD }}" \
-      -T target/*.jar \
-      "${{ secrets.JFROG_URL }}/libs-release-local/"
-
-  - name: Upload Build Artifact
-    uses: actions/upload-artifact@v4
+  - name: Trivy Filesystem Scan
+    uses: aquasecurity/trivy-action@master
     with:
-      name: springboot-artifact
-      path: target/*.jar
+      scan-type: fs
+      scan-ref: .
+
+  - name: Login To JFrog Docker Registry
+    run: |
+      docker login ${{ secrets.JFROG_DOCKER_REGISTRY }} \
+      -u ${{ secrets.JFROG_USERNAME }} \
+      -p ${{ secrets.JFROG_PASSWORD }}
+
+  - name: Build Docker Image
+    run: |
+      docker build \
+      -t ${{ secrets.JFROG_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }} .
+
+  - name: Trivy Container Scan
+    uses: aquasecurity/trivy-action@master
+    with:
+      image-ref: ${{ secrets.JFROG_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+
+  - name: Push Docker Image
+    run: |
+      docker push \
+      ${{ secrets.JFROG_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+
+  - name: JFrog CLI Setup
+    uses: jfrog/setup-jfrog-cli@v4
+
+  - name: Configure JFrog
+    run: |
+      jf c add artifactory \
+      --url=${{ secrets.JFROG_URL }} \
+      --user=${{ secrets.JFROG_USERNAME }} \
+      --password=${{ secrets.JFROG_PASSWORD }} \
+      --interactive=false
+
+  - name: JFrog Xray Scan
+    run: |
+      jf docker scan \
+      ${{ secrets.JFROG_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+
+  - name: Publish Build Info
+    run: |
+      jf rt build-collect-env
+      jf rt build-publish
 ```
 
 deploy-dev:
-
-```
 if: github.ref == 'refs/heads/dev'
 needs: build-test-scan
 runs-on: ubuntu-latest
 environment: dev
 
+```
 steps:
 
   - uses: actions/checkout@v4
@@ -101,19 +142,22 @@ steps:
       aws eks update-kubeconfig \
       --name ${{ secrets.EKS_CLUSTER_NAME }}
 
-  - name: Deploy DEV
+  - name: Helm Deploy DEV
     run: |
-      kubectl apply -f k8s/dev/ -n ${{ secrets.NAMESPACE }}
+      helm upgrade --install springboot-app ./helm \
+      --namespace ${{ secrets.NAMESPACE }} \
+      --create-namespace \
+      --set image.repository=${{ secrets.JFROG_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }} \
+      --set image.tag=${{ github.run_number }}
 ```
 
 deploy-qa:
-
-```
 if: github.ref == 'refs/heads/qa'
 needs: build-test-scan
 runs-on: ubuntu-latest
 environment: qa
 
+```
 steps:
 
   - uses: actions/checkout@v4
@@ -129,19 +173,22 @@ steps:
       aws eks update-kubeconfig \
       --name ${{ secrets.EKS_CLUSTER_NAME }}
 
-  - name: Deploy QA
+  - name: Helm Deploy QA
     run: |
-      kubectl apply -f k8s/qa/ -n ${{ secrets.NAMESPACE }}
+      helm upgrade --install springboot-app ./helm \
+      --namespace ${{ secrets.NAMESPACE }} \
+      --create-namespace \
+      --set image.repository=${{ secrets.JFROG_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }} \
+      --set image.tag=${{ github.run_number }}
 ```
 
 deploy-preprod:
-
-```
 if: github.ref == 'refs/heads/preprod'
 needs: build-test-scan
 runs-on: ubuntu-latest
 environment: preprod
 
+```
 steps:
 
   - uses: actions/checkout@v4
@@ -157,19 +204,22 @@ steps:
       aws eks update-kubeconfig \
       --name ${{ secrets.EKS_CLUSTER_NAME }}
 
-  - name: Deploy PREPROD
+  - name: Helm Deploy PREPROD
     run: |
-      kubectl apply -f k8s/preprod/ -n ${{ secrets.NAMESPACE }}
+      helm upgrade --install springboot-app ./helm \
+      --namespace ${{ secrets.NAMESPACE }} \
+      --create-namespace \
+      --set image.repository=${{ secrets.JFROG_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }} \
+      --set image.tag=${{ github.run_number }}
 ```
 
 deploy-prod:
-
-```
 if: github.ref == 'refs/heads/master'
 needs: build-test-scan
 runs-on: ubuntu-latest
 environment: prod
 
+```
 steps:
 
   - uses: actions/checkout@v4
@@ -185,18 +235,29 @@ steps:
       aws eks update-kubeconfig \
       --name ${{ secrets.EKS_CLUSTER_NAME }}
 
-  - name: Deploy PROD
+  - name: Helm Deploy PROD
     run: |
-      kubectl apply -f k8s/prod/ -n ${{ secrets.NAMESPACE }}
+      helm upgrade --install springboot-app ./helm \
+      --namespace ${{ secrets.NAMESPACE }} \
+      --create-namespace \
+      --set image.repository=${{ secrets.JFROG_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }} \
+      --set image.tag=${{ github.run_number }}
 
-  - name: Dynatrace Deployment Event
+  - name: Dynatrace Deployment Marker
     run: |
       curl -X POST \
       "${{ secrets.DYNATRACE_ENV_URL }}/api/v2/events/ingest" \
       -H "Authorization: Api-Token ${{ secrets.DYNATRACE_API_TOKEN }}" \
       -H "Content-Type: application/json" \
-      -d '{
-            "eventType":"CUSTOM_DEPLOYMENT",
-            "title":"GitHub Production Deployment"
-          }'
+      -d '{"eventType":"CUSTOM_DEPLOYMENT","title":"Production Deployment"}'
+
+  - name: Slack Notification
+    uses: slackapi/slack-github-action@v1.27.0
+    with:
+      payload: |
+        {
+          "text": "Production deployment completed successfully for build #${{ github.run_number }}"
+        }
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 ```

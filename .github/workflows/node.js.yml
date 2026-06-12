@@ -172,12 +172,21 @@ jobs:
           --namespace ${{ secrets.NAMESPACE }} --create-namespace \
           --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }} \
           --set image.tag=${{ github.run_number }}
+
       - name: Dynatrace Deployment Marker
         run: |
           curl -X POST "${{ secrets.DYNATRACE_ENV_URL }}/api/v2/events/ingest" \
           -H "Authorization: Api-Token ${{ secrets.DYNATRACE_API_TOKEN }}" \
           -H "Content-Type: application/json" \
-          -d '{"eventType":"CUSTOM_DEPLOYMENT","title":"Production Deployment"}'
+          -d '{
+            "eventType": "CUSTOM_DEPLOYMENT",
+            "title": "Production Deployment",
+            "entitySelector": "type(SERVICE),tag(production)",
+            "properties": {
+              "DeploymentVersion": "${{ github.run_number }}"
+            }
+          }'
+
       - name: Slack Notification
         uses: slackapi/slack-github-action@v1.27.0
         with:

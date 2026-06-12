@@ -1,4 +1,4 @@
-name: Enterprise Java Spring Boot CI/CD
+name: Enterprise React CI/CD
 
 on:
   push:
@@ -12,8 +12,7 @@ permissions:
   contents: read
 
 env:
-  JAVA_VERSION: "17"
-  IMAGE_NAME: springboot-app
+  IMAGE_NAME: react-app
 
 jobs:
   build-test-scan:
@@ -24,47 +23,19 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
+          node-version: '20'
 
-      - name: Cache Maven Repository
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+      - name: Install Dependencies
+        run: npm install
 
-      - name: Maven Clean Build
-        run: mvn clean package
+      - name: Build Application
+        run: npm run build
 
-      - name: Unit Test Execution
-        run: mvn test
-
-      - name: SonarQube Analysis
-        run: |
-          mvn sonar:sonar \
-          -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
-          -Dsonar.token=${{ secrets.SONAR_TOKEN }}
-
-      - name: Sonar Quality Gate
-        uses: sonarsource/sonarqube-quality-gate-action@master
-        timeout-minutes: 10
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-      - name: Install FOSSA
-        run: |
-          curl -H "Cache-Control: no-cache" \
-          https://raw.githubusercontent.com/fossas/fossa-cli/master/install.sh | bash
-
-      - name: FOSSA Scan
-        env:
-          FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
-        run: |
-          fossa analyze
-          fossa test
+      - name: Run Tests
+        run: npm test -- --watchAll=false
 
       - name: Trivy Filesystem Scan
         uses: aquasecurity/trivy-action@master
@@ -105,7 +76,7 @@ jobs:
         run: aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }}
       - name: Helm Deploy
         run: |
-          helm upgrade --install springboot-app ./helm \
+          helm upgrade --install react-app ./helm \
           --namespace ${{ secrets.NAMESPACE }} --create-namespace \
           --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }} \
           --set image.tag=${{ github.run_number }}
@@ -126,7 +97,7 @@ jobs:
         run: aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }}
       - name: Helm Deploy
         run: |
-          helm upgrade --install springboot-app ./helm \
+          helm upgrade --install react-app ./helm \
           --namespace ${{ secrets.NAMESPACE }} --create-namespace \
           --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }} \
           --set image.tag=${{ github.run_number }}
@@ -147,7 +118,7 @@ jobs:
         run: aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }}
       - name: Helm Deploy
         run: |
-          helm upgrade --install springboot-app ./helm \
+          helm upgrade --install react-app ./helm \
           --namespace ${{ secrets.NAMESPACE }} --create-namespace \
           --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }} \
           --set image.tag=${{ github.run_number }}
@@ -168,7 +139,7 @@ jobs:
         run: aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }}
       - name: Helm Deploy
         run: |
-          helm upgrade --install springboot-app ./helm \
+          helm upgrade --install react-app ./helm \
           --namespace ${{ secrets.NAMESPACE }} --create-namespace \
           --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }} \
           --set image.tag=${{ github.run_number }}
